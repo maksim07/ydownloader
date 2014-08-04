@@ -17,46 +17,21 @@ public final class DownloadResponseItem implements Serializable {
     private final URL uri;
 
     /**
-     * Flag means that this uri was successfully loaded
-     */
-    private final boolean success;
-
-    /**
-     * If an error occurred
-     */
-    private final DownloadException cause;
-
-    /**
      * File containing downloaded data
      */
     private final File file;
 
-    protected DownloadResponseItem(URL uri, File file) {
+    public DownloadResponseItem(URL uri, File file) {
         this.uri = uri;
-        this.success = true;
-        this.cause = null;
         this.file = file;
-    }
-
-    protected DownloadResponseItem(URL uri, DownloadException cause) {
-        this.uri = uri;
-        this.success = false;
-        this.cause = cause;
-        this.file = null;
     }
 
     public URL getUrl() {
         return uri;
     }
 
-    public boolean isSuccess() {
-        return success;
-    }
 
-    public File getFile() throws DownloadException {
-        if (!success)
-            throw cause;
-
+    public File getFile() {
         return file;
     }
 }

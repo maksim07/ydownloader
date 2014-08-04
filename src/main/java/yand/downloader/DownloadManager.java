@@ -1,12 +1,25 @@
 package yand.downloader;
 
 
+import java.io.IOException;
+
 /**
  * Interface of components for asynchronously downloading resources
  *
  * @author Max Osipov
  */
 public interface DownloadManager {
+
+
+    /**
+     * Download manager has to be started before usage
+     */
+    public void start() throws DownloadException;
+
+    /**
+     * Download manager has to be stopped after usage
+     */
+    public void stop() throws DownloadException;
 
     /**
      * Asynchronously starts downloading of the resources

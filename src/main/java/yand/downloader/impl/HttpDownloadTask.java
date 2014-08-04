@@ -1,24 +1,25 @@
 package yand.downloader.impl;
 
-import yand.downloader.DownloadRequest;
-
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 
 /**
  * @author Max Osipov
  */
-public class HttpDownloadTask {
+class HttpDownloadTask implements Closeable {
 
-    /**
-     * Original request
-     */
-    private final DownloadRequest request;
+    private final HttpDownloadController controller;
+
+    private final SocketChannel channel;
+
+    private volatile SelectionKey key;
 
     /**
      * Http url to download
@@ -31,26 +32,62 @@ public class HttpDownloadTask {
     private volatile FileChannel fchannel;
 
     /**
+     * File with downloaded data
+     */
+    private volatile File file;
+
+    /**
      * If the request was performed
      */
     private volatile boolean requested;
 
 
-    HttpDownloadTask(DownloadRequest request, URL url) throws IOException {
-        this.request = request;
+    HttpDownloadTask(HttpDownloadController controller, SocketChannel channel, URL url) {
+        this.controller = controller;
+        this.channel = channel;
         this.url = url;
     }
 
-    void readable(SocketChannel channel) throws IOException {
+    void registered(SelectionKey key) throws IOException {
+        this.key = key;
 
-        // file channel lazy initialization
-        if (fchannel == null) {
-            File tmpFile = File.createTempFile("yd_", ".data");
-            System.out.println("File created " + tmpFile.getAbsolutePath());
-            RandomAccessFile file = new RandomAccessFile(tmpFile, "rw");
-            this.fchannel = file.getChannel();
+        this.file = File.createTempFile("yd_", ".data");
+        System.out.println("File created " + file.getAbsolutePath());
+        RandomAccessFile rfile = new RandomAccessFile(this.file, "rw");
+        this.fchannel = rfile.getChannel();
+    }
+
+    @Override
+    public void close() throws IOException {
+
+        System.out.println("Closing");
+        key.cancel();
+
+        IOException first = null;
+        try {
+            channel.close();
+        } catch (IOException e) {
+            first = e;
         }
 
+        try {
+            fchannel.close();
+        } catch (IOException e) {
+            if (first != null)
+                e.addSuppressed(first);
+        }
+
+        if (first != null)
+            throw first;
+    }
+
+    void connectable() throws IOException {
+        if (channel.finishConnect()) {
+            key.interestOps(key.interestOps() & (~SelectionKey.OP_CONNECT));
+        }
+    }
+
+    void readable() throws IOException {
         ByteBuffer buffer = ByteBuffer.allocateDirect(2 * 1024 * 1024);
 
         int bytesRead = channel.read(buffer);
@@ -63,17 +100,15 @@ public class HttpDownloadTask {
         }
 
         if (bytesRead == -1) {
-            channel.close();
-            fchannel.close();
-            System.out.println("Channel is closed");
+            close();
+            controller.onTaskClose(this);
         }
-
     }
 
-    boolean writable(SocketChannel channel) throws IOException {
+
+    void writable() throws IOException {
 
         if (!requested) {
-
             ByteBuffer buffer = ByteBuffer.allocate(1000);
             String req = "GET /" + url.getPath() + " HTTP/1.1\r\n" +
                     "Host: " + url.getHost() + "\r\n" +
@@ -84,18 +119,31 @@ public class HttpDownloadTask {
             buffer.flip();
             channel.write(buffer);
             requested = true;
-
         }
-
-        return true;
     }
 
 
-    public URL getUrl() {
+    URL getUrl() {
         return url;
     }
 
-    public DownloadRequest getRequest() {
-        return request;
+    HttpDownloadController getController() {
+        return controller;
+    }
+
+    SocketChannel getChannel() {
+        return channel;
+    }
+
+    FileChannel getFchannel() {
+        return fchannel;
+    }
+
+    SelectionKey getKey() {
+        return key;
+    }
+
+    File getFile() {
+        return file;
     }
 }

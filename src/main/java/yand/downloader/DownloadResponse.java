@@ -10,11 +10,6 @@ import java.util.*;
 public class DownloadResponse implements Iterable<DownloadResponseItem> {
 
     /**
-     * Flag means that download of entire request was successfull
-     */
-    private final boolean success;
-
-    /**
      * Original request
      */
     private final DownloadRequest request;
@@ -24,14 +19,9 @@ public class DownloadResponse implements Iterable<DownloadResponseItem> {
      */
     private final Collection<DownloadResponseItem> items;
 
-    public DownloadResponse(boolean success, DownloadRequest request, Collection<DownloadResponseItem> items) {
-        this.success = success;
+    public DownloadResponse(DownloadRequest request, Collection<DownloadResponseItem> items) {
         this.request = request;
         this.items = Collections.unmodifiableCollection(items);
-    }
-
-    public boolean isSuccess() {
-        return success;
     }
 
     public DownloadRequest getRequest() {

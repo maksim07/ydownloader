@@ -1,12 +1,8 @@
 package yand.downloader.impl;
 
-import yand.downloader.DownloadController;
-import yand.downloader.DownloadException;
-import yand.downloader.DownloadManager;
-import yand.downloader.DownloadRequest;
+import yand.downloader.*;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.channels.*;
@@ -24,7 +20,7 @@ public class HttpDownloadManager implements DownloadManager {
     /**
      * NIO selector
      */
-    private final Selector selector;
+    private volatile Selector selector;
 
     /**
      * Thread for selecting channel events
@@ -34,7 +30,7 @@ public class HttpDownloadManager implements DownloadManager {
     /**
      * Queue with download requests
      */
-    private final ConcurrentLinkedQueue<DownloadRequest> tasks;
+    private final ConcurrentLinkedQueue<HttpDownloadController> tasks;
 
     /**
      * Started flag
@@ -47,44 +43,73 @@ public class HttpDownloadManager implements DownloadManager {
     private ExecutorService executor;
 
 
-    public static void main(String[] args) throws URISyntaxException, DownloadException, IOException {
+    public static void main(String[] args) throws URISyntaxException, DownloadException, IOException, ExecutionException, InterruptedException {
         HttpDownloadManager manager = HttpDownloadManager.create();
+        manager.start();
+
         URL[] urls = new URL[args.length];
         for (int i = 0; i < args.length; i++)
             urls[i] = new URL(args[i]);
 
-        manager.download(new DownloadRequest(urls));
+        DownloadController controller = manager.download(new DownloadRequest(urls));
+        DownloadResponse response = controller.get();
+        System.out.println("Response " + response);
+        manager.stop();
     }
 
-    private HttpDownloadManager() throws IOException {
+    /**
+     * Constructor
+     *
+     * @throws IOException
+     */
+    private HttpDownloadManager() {
+
+        ThreadFactory tf = new ThreadFactory() {
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread ret = new Thread(r);
+                ret.setDaemon(true);
+                return ret;
+            }
+        };
+
         this.executor = new ThreadPoolExecutor(20, 20, 0, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(20),
-                new ThreadPoolExecutor.CallerRunsPolicy());
-        this.selector = Selector.open();
-        this.tasks = new ConcurrentLinkedQueue<DownloadRequest>();
+                tf, new ThreadPoolExecutor.CallerRunsPolicy());
+        this.tasks = new ConcurrentLinkedQueue<>();
         this.thread = new Thread(new SelectorEventsConsumer());
+        this.thread.setDaemon(true);
     }
 
     public static HttpDownloadManager create() throws IOException {
         HttpDownloadManager ret = new HttpDownloadManager();
-        ret.start();
         return ret;
     }
 
-    private void start() {
+    public void start() throws DownloadException {
+        try {
+            this.selector = Selector.open();
+        } catch (IOException e) {
+            throw new DownloadException("Unable to open selector", e);
+        }
         started = true;
         thread.start();
     }
 
-    private void stop() {
+    public void stop() throws DownloadException {
         started = false;
         selector.wakeup();
     }
 
     @Override
     public DownloadController download(DownloadRequest request) throws DownloadException {
-        tasks.add(request);
-        selector.wakeup();
-        return null;
+
+        try (HttpDownloadController ret = new HttpDownloadController(selector, request)) {
+            tasks.add(ret);
+            selector.wakeup();
+            return ret;
+        } catch (IOException e) {
+            throw new DownloadException("Unable to register", e);
+        }
     }
 
     /**
@@ -95,89 +120,79 @@ public class HttpDownloadManager implements DownloadManager {
         @Override
         public void run() {
             while (started) {
+
+                int channelsCount = 0;
                 try {
-                    int channelsCount = selector.select();
-
-                    // poll queue for new registrations
-                    DownloadRequest request;
-                    while ((request = tasks.poll()) != null) {
-
-                        for (URL url : request.getResources()) {
-                            registerURL(request, url);
-                        }
-                    }
-
-                    // if there are no events
-                    if (channelsCount == 0)
-                        continue;
-
-                    // iterate over selected keys
-                    Set<SelectionKey> selectedKeys = selector.selectedKeys();
-                    Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
-                    while (keyIterator.hasNext()) {
-                        processEvent(keyIterator.next());
-                        keyIterator.remove();
-                    }
-
+                    channelsCount = selector.select();
                 } catch (IOException e) {
-                    // TODO: catch
                     e.printStackTrace();
+                    // TODO: catch it
+                }
+
+                // poll queue for new registrations
+                HttpDownloadController controller;
+                while ((controller = tasks.poll()) != null) {
+                    controller.register();
+                }
+
+                // if there are no events
+                if (channelsCount == 0)
+                    continue;
+
+                // iterate over selected keys
+                Set<SelectionKey> selectedKeys = selector.selectedKeys();
+                Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
+                while (keyIterator.hasNext()) {
+                    processEvent(keyIterator.next());
+                    keyIterator.remove();
                 }
             }
         }
 
-        private void registerURL(DownloadRequest request, URL url) throws IOException {
-            HttpDownloadTask task = new HttpDownloadTask(request, url);
-            String host = url.getHost();
-            int port = url.getPort();
 
-            InetSocketAddress address = new InetSocketAddress(host, port > 0 ? port : 80);
-            SocketChannel socketChannel = SocketChannel.open();
-            socketChannel.configureBlocking(false);
-            socketChannel.connect(address);
-
-            socketChannel.register(selector, SelectionKey.OP_CONNECT | SelectionKey.OP_READ | SelectionKey.OP_WRITE, task);
-        }
-
-        private void processEvent(final SelectionKey key) throws IOException {
-            final HttpDownloadTask finalTask = (HttpDownloadTask) key.attachment();
+        /**
+         * Processes event
+         *
+         * @param key selected key
+         */
+        private void processEvent(final SelectionKey key) {
+            final HttpDownloadTask task = (HttpDownloadTask) key.attachment();
             final SocketChannel channel = (SocketChannel) key.channel();
 
-            if (key.isConnectable()) {
-                // if connection is established - stop listening for connection events
-                if (channel.finishConnect()) {
-                    key.interestOps(key.interestOps() & (~SelectionKey.OP_CONNECT));
+            try {
+                if (key.isConnectable()) {
+                    // if connection is established - stop listening for connection events
+                    if (channel.finishConnect()) {
+                        key.interestOps(key.interestOps() & (~SelectionKey.OP_CONNECT));
+                    }
+                } else if (key.isReadable()) {
+
+                    // stop listening for read events
+                    key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+
+                    executor.submit(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                task.getController().readable(key);
+                            } finally {
+                                key.interestOps(key.interestOps() | SelectionKey.OP_READ);
+                                selector.wakeup();
+                            }
+                        }
+                    });
+                } else if (key.isWritable()) {
+                    key.interestOps(key.interestOps() & (~SelectionKey.OP_WRITE));
+                    executor.submit(new Runnable() {
+                        @Override
+                        public void run() {
+                            task.getController().writable(key);
+                        }
+                    });
                 }
-            } else if (key.isReadable()) {
-
-                // stop listening for read events
-                key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
-
-                executor.submit(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            finalTask.readable(channel);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        } finally {
-                            key.interestOps(key.interestOps() | SelectionKey.OP_READ);
-                            selector.wakeup();
-                        }
-                    }
-                });
-            } else if (key.isWritable()) {
-                key.interestOps(key.interestOps() & (~SelectionKey.OP_WRITE));
-                executor.submit(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            finalTask.writable(channel);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                });
+            }
+            catch (IOException e) {
+                task.getController().error(e);
             }
         }
 

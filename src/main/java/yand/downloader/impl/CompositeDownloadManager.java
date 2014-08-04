@@ -28,6 +28,16 @@ public class CompositeDownloadManager implements DownloadManager {
     }
 
     @Override
+    public void start() {
+
+    }
+
+    @Override
+    public void stop() {
+
+    }
+
+    @Override
     public DownloadController download(DownloadRequest request) throws DownloadException {
 
         // split incoming request to requests correspond to different uri schemes
