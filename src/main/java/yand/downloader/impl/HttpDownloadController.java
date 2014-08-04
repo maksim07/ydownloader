@@ -60,7 +60,7 @@ public class HttpDownloadController implements DownloadController, Closeable {
 
                 System.out.println("Controller is registered for " + url);
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             error(e);
         }
     }
@@ -71,7 +71,7 @@ public class HttpDownloadController implements DownloadController, Closeable {
         } catch (IOException e) {
             cause.addSuppressed(e);
         }
-        cause.printStackTrace();
+        //cause.printStackTrace();
 
         this.error = true;
         this.cause = cause;
