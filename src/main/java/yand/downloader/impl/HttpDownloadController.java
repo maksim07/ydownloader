@@ -15,6 +15,7 @@ import java.nio.channels.SocketChannel;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Http downloader controller implementation
@@ -22,6 +23,11 @@ import java.util.concurrent.*;
  * @author Max Osipov
  */
 public class HttpDownloadController implements DownloadController, Closeable {
+
+    /**
+     * Current status of download
+     */
+    private volatile DownloadingStatus status;
 
     /**
      * Reference to selector which multiplexing the channels of the request
@@ -36,22 +42,19 @@ public class HttpDownloadController implements DownloadController, Closeable {
     /**
      * Set with tasks for each url from original request
      */
-    private CopyOnWriteArraySet<HttpDownloadTask> tasks;
-
-    /**
-     * Error flag
-     */
-    private volatile boolean error;
+    private final CopyOnWriteArraySet<HttpDownloadTask> tasks;
 
     /**
      * Thrown exception
      */
-    private Throwable cause;
+    private volatile Throwable cause;
 
     /**
      * Latch to wait for result
      */
     private final CountDownLatch latch;
+
+    private final AtomicInteger uncomletedTasksCount;
 
 
     HttpDownloadController(Selector selector, DownloadRequest request) {
@@ -59,6 +62,8 @@ public class HttpDownloadController implements DownloadController, Closeable {
         this.request = request;
         this.tasks = new CopyOnWriteArraySet<>();
         this.latch = new CountDownLatch(request.getResources().length);
+        this.status = DownloadingStatus.STARTING;
+        this.uncomletedTasksCount = new AtomicInteger(request.getResources().length);
     }
 
     void register() {
@@ -78,13 +83,14 @@ public class HttpDownloadController implements DownloadController, Closeable {
 
                 tasks.add(task);
 
-
                 System.out.println("Controller is registered for " + url);
+                this.status = DownloadingStatus.RUNNING;
             }
         } catch (Exception e) {
             error(e);
         }
     }
+
 
     void error(Throwable cause) {
         try {
@@ -94,8 +100,8 @@ public class HttpDownloadController implements DownloadController, Closeable {
         }
         //cause.printStackTrace();
 
-        this.error = true;
         this.cause = cause;
+        this.status = DownloadingStatus.ERROR;
 
         for (int i = 0; i < request.getResources().length; i++)
             latch.countDown();
@@ -119,32 +125,60 @@ public class HttpDownloadController implements DownloadController, Closeable {
 
     @Override
     public DownloadingStatus status() {
-        return null;
+        return status;
     }
 
     @Override
     public void pause() {
+        if (isDone())
+            return;
 
+        // stop listening for reads
+        for (HttpDownloadTask task : tasks) {
+            SelectionKey key = task.getKey();
+            key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+        }
+        status = DownloadingStatus.PAUSED;
     }
 
     @Override
     public void resume() {
+        if (isDone())
+            return;
 
+        // start listening for reads back
+        for (HttpDownloadTask task : tasks) {
+            SelectionKey key = task.getKey();
+            key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+        }
+        status = DownloadingStatus.RUNNING;
+        selector.wakeup();
     }
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
-        return false;
+        if (isDone())
+            return false;
+
+        try {
+            close();
+            this.status = DownloadingStatus.CANCELED;
+            return isDone();
+        } catch (IOException e) {
+            error(e);
+            return false;
+        }
     }
 
     @Override
     public boolean isCancelled() {
-        return false;
+        return status == DownloadingStatus.CANCELED;
     }
 
     @Override
     public boolean isDone() {
-        return false;
+        DownloadingStatus status = this.status;
+        return status == DownloadingStatus.CANCELED || status == DownloadingStatus.ERROR || status == DownloadingStatus.SUCCESS;
     }
 
     @Override
@@ -160,7 +194,7 @@ public class HttpDownloadController implements DownloadController, Closeable {
     }
 
     private DownloadResponse makeResponse() throws ExecutionException {
-        if (error)
+        if (status == DownloadingStatus.ERROR)
             throw new ExecutionException(cause);
         else {
             Set<DownloadResponseItem> items = new HashSet<>();
@@ -173,6 +207,9 @@ public class HttpDownloadController implements DownloadController, Closeable {
 
     void onTaskClose(HttpDownloadTask task) {
         latch.countDown();
+        if (uncomletedTasksCount.decrementAndGet() == 0) {
+            this.status = DownloadingStatus.SUCCESS;
+        }
     }
 
 

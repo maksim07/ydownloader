@@ -10,7 +10,7 @@ import java.util.concurrent.Future;
 public interface DownloadController extends Future<DownloadResponse> {
 
     enum DownloadingStatus {
-        STARTING, RUNNING, PAUSED, SUCCESS, ERROR
+        STARTING, RUNNING, PAUSED, SUCCESS, ERROR, CANCELED
     }
 
     /**
