@@ -11,14 +11,28 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 
 /**
+ * Class represents individual url downloading tasks.
+ * The particular instance of the class can be used in just one thread at the moment. But it can be used
+ * by different threads in different moments of time. For the purpose of
+ * changes visibility here all non-final variables are declared as volatile.
+ *
  * @author Max Osipov
  */
 class HttpDownloadTask implements Closeable {
 
+    /**
+     * Link to parent controller
+     */
     private final HttpDownloadController controller;
 
+    /**
+     * Channel to read data from
+     */
     private final SocketChannel channel;
 
+    /**
+     * Selection key with which channel was registered in selector
+     */
     private volatile SelectionKey key;
 
     /**
@@ -40,6 +54,11 @@ class HttpDownloadTask implements Closeable {
      * If the request was performed
      */
     private volatile boolean requested;
+
+    /**
+     * If set to true, than http header has been already read
+     */
+    private volatile boolean body;
 
 
     HttpDownloadTask(HttpDownloadController controller, SocketChannel channel, URL url) {
@@ -87,6 +106,16 @@ class HttpDownloadTask implements Closeable {
         int bytesRead = channel.read(buffer);
         while (bytesRead > 0) {
             buffer.flip();
+
+            // if we have not read header yet than read it
+            if (!body) {
+                String line;
+                do {
+                    line = HttpHelper.readLine(buffer);
+                } while (line != null && line.length() > 0);
+                body = line != null && line.length() == 0;
+            }
+
             fchannel.write(buffer);
             buffer.clear();
 
@@ -101,7 +130,7 @@ class HttpDownloadTask implements Closeable {
 
 
     void writable() throws IOException {
-
+        // write request only once
         if (!requested) {
             HttpHelper.writeHttpGet(url, channel);
             requested = true;
@@ -115,14 +144,6 @@ class HttpDownloadTask implements Closeable {
 
     HttpDownloadController getController() {
         return controller;
-    }
-
-    SocketChannel getChannel() {
-        return channel;
-    }
-
-    FileChannel getFchannel() {
-        return fchannel;
     }
 
     SelectionKey getKey() {

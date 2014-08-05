@@ -5,10 +5,6 @@ import yand.downloader.DownloadException;
 import yand.downloader.DownloadManager;
 import yand.downloader.DownloadRequest;
 
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -28,63 +24,26 @@ public class CompositeDownloadManager implements DownloadManager {
     }
 
     @Override
-    public void start() {
-
-    }
-
-    @Override
-    public void stop() {
-
+    public void stop() throws DownloadException {
+        for (DownloadManager manager : registry.values())
+            manager.stop();
     }
 
     @Override
     public DownloadController download(DownloadRequest request) throws DownloadException {
 
-        // split incoming request to requests correspond to different uri schemes
-        Map<String, DownloadRequestSplit> splits = new HashMap<String, DownloadRequestSplit>();
-        for(URL url : request.getResources()) {
-            String scheme = url.getProtocol();
-            DownloadManager dm = registry.get(scheme);
-            if (dm == null)
-                throw new DownloadException("Such scheme is not supported by the downloader: " + scheme);
-
-            DownloadRequestSplit split = splits.get(url.getProtocol());
-            if (split == null) {
-                split = new DownloadRequestSplit(dm);
-                splits.put(scheme, split);
-            }
-
-            split.add(url);
+        if (request.getResources().length == 0) {
+            throw new IllegalArgumentException("At least one url has to be provided");
         }
+        // check if all request urls has the same protocol
+        String protocol = request.getResources()[0].getProtocol();
+        for (int i = 1; i < request.getResources().length; i ++)
+            if (!protocol.equals(request.getResources()[i].getProtocol()))
+                throw new IllegalArgumentException("All urls of the same request has to have the same protocol scheme");
 
-        // launch each split download
-        for (DownloadRequestSplit split : splits.values()) {
-            List<URL> urls = split.getUrls();
-            split.getManager().download(new DownloadRequest(urls.toArray(new URL[urls.size()])));
-        }
 
-        return null;
+        DownloadManager target = registry.get(protocol);
+        return target.download(request);
     }
 
-    private static class DownloadRequestSplit {
-        private DownloadManager manager;
-        private List<URL> urls;
-
-        private DownloadRequestSplit(DownloadManager manager) {
-            this.manager = manager;
-            this.urls = new ArrayList<URL>();
-        }
-
-        private void add(URL uri) {
-            this.urls.add(uri);
-        }
-
-        public DownloadManager getManager() {
-            return manager;
-        }
-
-        public List<URL> getUrls() {
-            return urls;
-        }
-    }
 }

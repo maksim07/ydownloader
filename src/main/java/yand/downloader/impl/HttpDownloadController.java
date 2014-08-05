@@ -54,6 +54,9 @@ public class HttpDownloadController implements DownloadController, Closeable {
      */
     private final CountDownLatch latch;
 
+    /**
+     * Counter for uncompleted tasks
+     */
     private final AtomicInteger uncomletedTasksCount;
 
 

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
 
 /**
  * @author Max Osipov
@@ -13,6 +14,8 @@ public class HttpHelper {
     public static final byte LF = 10;
     public static final byte SP = 32;
     public static final byte[] CRLF = new byte[]{CR, LF};
+
+    public static final Charset CHARSET = Charset.forName("utf-8");
 
 
     public static final byte[] HTTP_GET_METHOD = new byte[] {'G', 'E', 'T', SP, '/'};
@@ -46,4 +49,31 @@ public class HttpHelper {
         channel.write(buffer);
     }
 
+    /**
+     * Method tries to read line from byte buffer. It returns null if there is no CRLF in the buffer
+     *
+     * @param buffer buffer to read
+     * @return string on null
+     */
+    public static String readLine(ByteBuffer buffer) {
+        int remaining = buffer.remaining();
+        if (remaining == 0)
+            return null;
+
+        buffer.mark();
+        byte prev = buffer.get();
+        for (int i = 1; i < remaining; i ++) {
+            byte cur = buffer.get();
+            if (cur == LF && prev == CR) {
+                buffer.reset();
+                byte[] array = new byte[i + 1];
+                buffer.get(array);
+                return new String(array, 0, array.length - CRLF.length, CHARSET);
+            }
+            prev = cur;
+        }
+
+        buffer.reset();
+        return null;
+    }
 }

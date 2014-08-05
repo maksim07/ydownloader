@@ -44,8 +44,7 @@ public class HttpDownloadManager implements DownloadManager {
 
 
     public static void main(String[] args) throws URISyntaxException, DownloadException, IOException, ExecutionException, InterruptedException {
-        HttpDownloadManager manager = HttpDownloadManager.create();
-        manager.start();
+        HttpDownloadManager manager = HttpDownloadManager.create(20);
 
         URL[] urls = new URL[args.length];
         for (int i = 0; i < args.length; i++)
@@ -62,7 +61,7 @@ public class HttpDownloadManager implements DownloadManager {
      *
      * @throws IOException
      */
-    private HttpDownloadManager() {
+    private HttpDownloadManager(int threadPoolSize) {
 
         ThreadFactory tf = new ThreadFactory() {
             @Override
@@ -73,29 +72,24 @@ public class HttpDownloadManager implements DownloadManager {
             }
         };
 
-        this.executor = new ThreadPoolExecutor(20, 20, 0, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(20),
+        this.executor = new ThreadPoolExecutor(threadPoolSize, threadPoolSize, 0, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<Runnable>(threadPoolSize),
                 tf, new ThreadPoolExecutor.CallerRunsPolicy());
         this.tasks = new ConcurrentLinkedQueue<>();
         this.thread = new Thread(new SelectorEventsConsumer());
         this.thread.setDaemon(true);
     }
 
-    public static HttpDownloadManager create() throws IOException {
-        HttpDownloadManager ret = new HttpDownloadManager();
+    public static HttpDownloadManager create(int threadPoolSize) throws IOException {
+        HttpDownloadManager ret = new HttpDownloadManager(threadPoolSize);
+        ret.selector = Selector.open();
+        ret.started = true;
+        ret.thread.start();
+
         return ret;
     }
 
-    public void start() throws DownloadException {
-        try {
-            this.selector = Selector.open();
-        } catch (IOException e) {
-            throw new DownloadException("Unable to open selector", e);
-        }
-        started = true;
-        thread.start();
-    }
-
-    public void stop() throws DownloadException {
+    public void stop() {
         started = false;
         selector.wakeup();
     }
