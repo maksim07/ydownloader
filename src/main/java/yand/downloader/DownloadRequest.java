@@ -19,7 +19,17 @@ public final class DownloadRequest implements Serializable {
         this.resources = resources;
     }
 
+    public DownloadRequest(URL resource) {
+        this.resources = new URL[]{resource};
+    }
     public URL[] getResources() {
         return resources;
+    }
+
+    public DownloadRequest add(URL url) {
+        URL[] nurls = new URL[resources.length + 1];
+        System.arraycopy(resources, 0, nurls, 0, resources.length);
+        nurls[resources.length] = url;
+        return new DownloadRequest(nurls);
     }
 }
