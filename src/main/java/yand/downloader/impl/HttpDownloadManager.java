@@ -58,8 +58,6 @@ public class HttpDownloadManager implements DownloadManager {
 
     /**
      * Constructor
-     *
-     * @throws IOException
      */
     private HttpDownloadManager(int threadPoolSize) {
 

@@ -12,7 +12,7 @@ import java.net.URL;
 public final class DownloadResponseItem implements Serializable {
 
     /**
-     * Source uri
+     * Source url
      */
     private final URL uri;
 

@@ -22,7 +22,7 @@ public class DownloadManagers {
     public static DownloadManager createDefault() {
 
         // this implementation supports only http scheme
-        Map<String, DownloadManager> registry = new HashMap<String, DownloadManager>();
+        Map<String, DownloadManager> registry = new HashMap<>();
         try {
             registry.put("http", HttpDownloadManager.create(100));
         } catch (IOException e) {
