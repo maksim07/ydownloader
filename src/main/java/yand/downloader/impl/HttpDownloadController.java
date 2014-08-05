@@ -17,21 +17,42 @@ import java.util.Set;
 import java.util.concurrent.*;
 
 /**
+ * Http downloader controller implementation
+ *
  * @author Max Osipov
  */
 public class HttpDownloadController implements DownloadController, Closeable {
 
+    /**
+     * Reference to selector which multiplexing the channels of the request
+     */
     private final Selector selector;
 
+    /**
+     * Original request
+     */
     private final DownloadRequest request;
 
+    /**
+     * Set with tasks for each url from original request
+     */
     private CopyOnWriteArraySet<HttpDownloadTask> tasks;
 
+    /**
+     * Error flag
+     */
     private volatile boolean error;
 
+    /**
+     * Thrown exception
+     */
     private Throwable cause;
 
+    /**
+     * Latch to wait for result
+     */
     private final CountDownLatch latch;
+
 
     HttpDownloadController(Selector selector, DownloadRequest request) {
         this.selector = selector;
