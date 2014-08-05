@@ -14,6 +14,11 @@ import java.util.Map;
  */
 public class DownloadManagers {
 
+    /**
+     * Method creates download manager suitable for most purposes (actually just for downloading http sources)
+     *
+     * @return download manager
+     */
     public static DownloadManager createDefault() {
 
         // this implementation supports only http scheme
