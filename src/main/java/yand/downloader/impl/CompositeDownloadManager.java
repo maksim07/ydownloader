@@ -8,7 +8,8 @@ import yand.downloader.DownloadRequest;
 import java.util.Map;
 
 /**
- * Download manager composed of managers for each distinct protocol scheme
+ * Download manager composed of managers for each distinct protocol scheme.
+ * Clients should not send requests with mixed url protocols to this downloader.
  *
  * @author Max Osipov
  */

@@ -68,7 +68,7 @@ public abstract class DownloadManagerTest {
             DownloadController controller = manager.download(request);
 
             try {
-                DownloadResponse response = controller.get();
+                controller.get();
                 fail();
             }
             catch (ExecutionException e) {

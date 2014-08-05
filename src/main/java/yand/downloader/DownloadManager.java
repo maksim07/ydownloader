@@ -11,7 +11,7 @@ public interface DownloadManager {
     /**
      * Download manager has to be stopped after usage
      */
-    public void stop() throws DownloadException;
+    void stop() throws DownloadException;
 
     /**
      * Asynchronously starts downloading of the resources
