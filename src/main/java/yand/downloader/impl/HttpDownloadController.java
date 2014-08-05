@@ -177,7 +177,6 @@ public class HttpDownloadController implements DownloadController, Closeable {
 
 
     void readable(SelectionKey key) {
-
         try {
             HttpDownloadTask task = (HttpDownloadTask) key.attachment();
             task.readable();
@@ -187,7 +186,6 @@ public class HttpDownloadController implements DownloadController, Closeable {
     }
 
     void writable(SelectionKey key) {
-
         try {
             HttpDownloadTask task = (HttpDownloadTask) key.attachment();
             task.writable();

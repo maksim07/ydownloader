@@ -81,12 +81,6 @@ class HttpDownloadTask implements Closeable {
             throw first;
     }
 
-    void connectable() throws IOException {
-        if (channel.finishConnect()) {
-            key.interestOps(key.interestOps() & (~SelectionKey.OP_CONNECT));
-        }
-    }
-
     void readable() throws IOException {
         ByteBuffer buffer = ByteBuffer.allocateDirect(2 * 1024 * 1024);
 
@@ -109,15 +103,7 @@ class HttpDownloadTask implements Closeable {
     void writable() throws IOException {
 
         if (!requested) {
-            ByteBuffer buffer = ByteBuffer.allocate(1000);
-            String req = "GET /" + url.getPath() + " HTTP/1.1\r\n" +
-                    "Host: " + url.getHost() + "\r\n" +
-                    "Connection: close\r\n\r\n";
-            for (char c : req.toCharArray())
-                buffer.put((byte) c);
-
-            buffer.flip();
-            channel.write(buffer);
+            HttpHelper.writeHttpGet(url, channel);
             requested = true;
         }
     }
