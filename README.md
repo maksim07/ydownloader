@@ -13,6 +13,7 @@
   2. Build it with maven:
   
   ```
+  cd ydownloader
   mvn package 
   ```
   
