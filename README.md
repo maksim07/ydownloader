@@ -1,6 +1,6 @@
 # Downloader
 
-  Current version support http sources loading without following redirects. 
+  Current version supports http sources loading without following redirects. 
   
 # Build
 
