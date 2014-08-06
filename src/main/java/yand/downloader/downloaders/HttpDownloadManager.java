@@ -1,6 +1,7 @@
 package yand.downloader.downloaders;
 
 import yand.downloader.*;
+import yand.downloader.util.DirectByteBuffersPool;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -40,11 +41,12 @@ public class HttpDownloadManager implements DownloadManager {
     /**
      * Thread pool to execute tasks
      */
-    private ExecutorService executor;
+    private final ExecutorService executor;
 
+    private final DirectByteBuffersPool pool;
 
     public static void main(String[] args) throws URISyntaxException, DownloadException, IOException, ExecutionException, InterruptedException {
-        HttpDownloadManager manager = HttpDownloadManager.create(20);
+        HttpDownloadManager manager = HttpDownloadManager.create(20, 20, 2 * 1024 * 1024);
 
         URL[] urls = new URL[args.length];
         for (int i = 0; i < args.length; i++)
@@ -59,7 +61,7 @@ public class HttpDownloadManager implements DownloadManager {
     /**
      * Constructor
      */
-    private HttpDownloadManager(int threadPoolSize) {
+    private HttpDownloadManager(int threadPoolSize, int buffersPoolSize, int buffersSize) {
 
         ThreadFactory tf = new ThreadFactory() {
             @Override
@@ -76,10 +78,11 @@ public class HttpDownloadManager implements DownloadManager {
         this.tasks = new ConcurrentLinkedQueue<>();
         this.thread = new Thread(new SelectorEventsConsumer());
         this.thread.setDaemon(true);
+        this.pool = new DirectByteBuffersPool(buffersSize, buffersPoolSize);
     }
 
-    public static HttpDownloadManager create(int threadPoolSize) throws IOException {
-        HttpDownloadManager ret = new HttpDownloadManager(threadPoolSize);
+    public static HttpDownloadManager create(int threadPoolSize, int buffersPoolSize, int buffersSize) throws IOException {
+        HttpDownloadManager ret = new HttpDownloadManager(threadPoolSize, buffersPoolSize, buffersSize);
         ret.selector = Selector.open();
         ret.started = true;
         ret.thread.start();
@@ -95,7 +98,7 @@ public class HttpDownloadManager implements DownloadManager {
     @Override
     public DownloadController download(DownloadRequest request) throws DownloadException {
 
-        try (HttpDownloadController ret = new HttpDownloadController(selector, request)) {
+        try (HttpDownloadController ret = new HttpDownloadController(selector, request, pool)) {
             tasks.add(ret);
             selector.wakeup();
             return ret;

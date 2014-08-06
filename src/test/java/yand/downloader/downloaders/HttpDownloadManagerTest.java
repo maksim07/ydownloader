@@ -8,6 +8,6 @@ public class HttpDownloadManagerTest extends DownloadManagerTest {
 
     @Override
     public DownloadManager createManager() throws IOException {
-        return HttpDownloadManager.create(10);
+        return HttpDownloadManager.create(10, 10, 8);
     }
 }

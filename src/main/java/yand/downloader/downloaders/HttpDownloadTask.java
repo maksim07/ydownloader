@@ -63,6 +63,7 @@ class HttpDownloadTask implements Closeable {
     private volatile boolean body;
 
 
+
     HttpDownloadTask(HttpDownloadController controller, SocketChannel channel, URL url) {
         this.controller = controller;
         this.channel = channel;
@@ -109,30 +110,47 @@ class HttpDownloadTask implements Closeable {
     }
 
     void readable() throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocateDirect(2 * 1024 * 1024);
 
-        int bytesRead = channel.read(buffer);
-        while (bytesRead > 0) {
-            buffer.flip();
+        ByteBuffer buffer = controller.getPool().start();
 
-            // if we have not read header yet than read it
-            if (!body) {
-                String line;
-                do {
-                    line = HttpHelper.readLine(buffer);
-                } while (line != null && line.length() > 0);
-                body = line != null && line.length() == 0;
+        try {
+            int bytesRead = channel.read(buffer);
+            while (bytesRead > 0) {
+                buffer.flip();
+
+                // if we have not read header yet than read it
+                while (!body && bytesRead > 0) {
+                    String line;
+                    do {
+                        line = HttpHelper.readLine(buffer);
+                    } while (line != null && line.length() > 0);
+                    body = line != null && line.length() == 0;
+
+                    // if the header is too large to fit in buffer
+                    if (!body) {
+                        buffer.clear();
+                        bytesRead = channel.read(buffer);
+                        buffer.flip();
+                    }
+                }
+
+                if (bytesRead <= 0)
+                    break;
+
+                fchannel.write(buffer);
+                buffer.clear();
+
+                bytesRead = channel.read(buffer);
             }
 
-            fchannel.write(buffer);
-            buffer.clear();
 
-            bytesRead = channel.read(buffer);
+            if (bytesRead == -1) {
+                close();
+                controller.onTaskClose(this);
+            }
         }
-
-        if (bytesRead == -1) {
-            close();
-            controller.onTaskClose(this);
+        finally {
+            controller.getPool().finish(buffer);
         }
     }
 

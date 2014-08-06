@@ -4,6 +4,7 @@ import yand.downloader.DownloadController;
 import yand.downloader.DownloadRequest;
 import yand.downloader.DownloadResponse;
 import yand.downloader.DownloadResponseItem;
+import yand.downloader.util.DirectByteBuffersPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -66,8 +67,9 @@ public class HttpDownloadController implements DownloadController, Closeable {
      */
     private final Lock tasksLock;
 
+    private final DirectByteBuffersPool pool;
 
-    HttpDownloadController(Selector selector, DownloadRequest request) {
+    HttpDownloadController(Selector selector, DownloadRequest request, DirectByteBuffersPool pool) {
         this.selector = selector;
         this.request = request;
         this.tasks = new HashSet<>();
@@ -75,6 +77,7 @@ public class HttpDownloadController implements DownloadController, Closeable {
         this.status = DownloadingStatus.STARTING;
         this.uncomletedTasksCount = new AtomicInteger(request.getResources().length);
         this.tasksLock = new ReentrantLock();
+        this.pool = pool;
     }
 
     void register() {
@@ -270,4 +273,7 @@ public class HttpDownloadController implements DownloadController, Closeable {
         }
     }
 
+    public DirectByteBuffersPool getPool() {
+        return pool;
+    }
 }

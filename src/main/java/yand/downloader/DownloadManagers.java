@@ -24,7 +24,7 @@ public class DownloadManagers {
         // this implementation supports only http scheme
         Map<String, DownloadManager> registry = new HashMap<>();
         try {
-            registry.put("http", HttpDownloadManager.create(100));
+            registry.put("http", HttpDownloadManager.create(100, 100, 2 * 1024 * 1024));
         } catch (IOException e) {
             e.printStackTrace();
         }
