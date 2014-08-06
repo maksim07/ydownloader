@@ -228,6 +228,11 @@ public class HttpDownloadController implements DownloadController, Closeable {
         return makeResponse();
     }
 
+    @Override
+    public DownloadRequest getRequest() {
+        return request;
+    }
+
     private DownloadResponse makeResponse() throws ExecutionException {
         if (status == DownloadingStatus.ERROR)
             throw new ExecutionException(cause);

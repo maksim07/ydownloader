@@ -13,6 +13,8 @@ public interface DownloadController extends Future<DownloadResponse> {
         STARTING, RUNNING, PAUSED, SUCCESS, ERROR, CANCELED
     }
 
+    public DownloadRequest getRequest();
+
     /**
      * Returns current status of the downloading process
      *
