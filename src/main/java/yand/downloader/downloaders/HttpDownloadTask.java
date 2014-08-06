@@ -69,6 +69,12 @@ class HttpDownloadTask implements Closeable {
         this.url = url;
     }
 
+    /**
+     * Callback from controller which means that the task has been registered in selector
+     *
+     * @param key registration key
+     * @throws IOException
+     */
     void registered(SelectionKey key) throws IOException {
         this.key = key;
 

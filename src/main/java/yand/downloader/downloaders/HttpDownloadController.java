@@ -16,6 +16,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Http downloader controller implementation
@@ -42,7 +44,7 @@ public class HttpDownloadController implements DownloadController, Closeable {
     /**
      * Set with tasks for each url from original request
      */
-    private final CopyOnWriteArraySet<HttpDownloadTask> tasks;
+    private final Set<HttpDownloadTask> tasks;
 
     /**
      * Thrown exception
@@ -59,17 +61,24 @@ public class HttpDownloadController implements DownloadController, Closeable {
      */
     private final AtomicInteger uncomletedTasksCount;
 
+    /**
+     * Lock for tasks collection concurrency access
+     */
+    private final Lock tasksLock;
+
 
     HttpDownloadController(Selector selector, DownloadRequest request) {
         this.selector = selector;
         this.request = request;
-        this.tasks = new CopyOnWriteArraySet<>();
+        this.tasks = new HashSet<>();
         this.latch = new CountDownLatch(request.getResources().length);
         this.status = DownloadingStatus.STARTING;
         this.uncomletedTasksCount = new AtomicInteger(request.getResources().length);
+        this.tasksLock = new ReentrantLock();
     }
 
     void register() {
+        tasksLock.lock();
         try {
             for (URL url : request.getResources()) {
                 String host = url.getHost();
@@ -92,8 +101,32 @@ public class HttpDownloadController implements DownloadController, Closeable {
         } catch (Exception e) {
             error(e);
         }
+        finally {
+            tasksLock.unlock();
+        }
     }
 
+    @Override
+    public void close() throws IOException {
+
+        tasksLock.lock();
+        try {
+            IOException first = null;
+            for (HttpDownloadTask task : tasks) {
+                try {
+                    task.close();
+                } catch (IOException e) {
+                    if (first == null) first = e;
+                    else first.addSuppressed(e);
+                }
+            }
+            if (first != null)
+                throw first;
+        }
+        finally {
+            tasksLock.unlock();
+        }
+    }
 
     void error(Throwable cause) {
         try {
@@ -110,21 +143,6 @@ public class HttpDownloadController implements DownloadController, Closeable {
             latch.countDown();
     }
 
-    @Override
-    public void close() throws IOException {
-        IOException first = null;
-        for (HttpDownloadTask task : tasks) {
-            try {
-                task.close();
-            } catch (IOException e) {
-                if (first == null) first = e;
-                else first.addSuppressed(e);
-            }
-        }
-
-        if (first != null)
-            throw first;
-    }
 
     @Override
     public DownloadingStatus status() {
@@ -137,9 +155,15 @@ public class HttpDownloadController implements DownloadController, Closeable {
             return;
 
         // stop listening for reads
-        for (HttpDownloadTask task : tasks) {
-            SelectionKey key = task.getKey();
-            key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+        tasksLock.lock();
+        try {
+            for (HttpDownloadTask task : tasks) {
+                SelectionKey key = task.getKey();
+                key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+            }
+        }
+        finally {
+            tasksLock.unlock();
         }
         status = DownloadingStatus.PAUSED;
     }
@@ -150,9 +174,15 @@ public class HttpDownloadController implements DownloadController, Closeable {
             return;
 
         // start listening for reads back
-        for (HttpDownloadTask task : tasks) {
-            SelectionKey key = task.getKey();
-            key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+        tasksLock.lock();
+        try {
+            for (HttpDownloadTask task : tasks) {
+                SelectionKey key = task.getKey();
+                key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+            }
+        }
+        finally {
+            tasksLock.unlock();
         }
         status = DownloadingStatus.RUNNING;
         selector.wakeup();
@@ -201,8 +231,14 @@ public class HttpDownloadController implements DownloadController, Closeable {
             throw new ExecutionException(cause);
         else {
             Set<DownloadResponseItem> items = new HashSet<>();
-            for (HttpDownloadTask task : tasks) {
-                items.add(new DownloadResponseItem(task.getUrl(), task.getFile()));
+            tasksLock.lock();
+            try {
+                for (HttpDownloadTask task : tasks) {
+                    items.add(new DownloadResponseItem(task.getUrl(), task.getFile()));
+                }
+            }
+            finally {
+                tasksLock.unlock();
             }
             return new DownloadResponse(request, items);
         }
