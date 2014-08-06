@@ -4,7 +4,7 @@ import java.io.Serializable;
 import java.net.URL;
 
 /**
- * Request is a bunch of source uri's from which data has to be loaded.
+ * Request is a bunch of source url's from which data has to be loaded. It is either successful or not as a whole.
  *
  * @author Max Osipov
  */

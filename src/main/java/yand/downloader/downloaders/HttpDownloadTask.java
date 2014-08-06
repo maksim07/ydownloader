@@ -1,4 +1,6 @@
-package yand.downloader.impl;
+package yand.downloader.downloaders;
+
+import yand.downloader.util.HttpHelper;
 
 import java.io.Closeable;
 import java.io.File;

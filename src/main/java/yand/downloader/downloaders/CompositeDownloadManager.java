@@ -1,4 +1,4 @@
-package yand.downloader.impl;
+package yand.downloader.downloaders;
 
 import yand.downloader.DownloadController;
 import yand.downloader.DownloadException;

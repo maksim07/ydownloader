@@ -1,4 +1,4 @@
-package yand.downloader.impl;
+package yand.downloader.util;
 
 import java.io.IOException;
 import java.net.URL;

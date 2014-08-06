@@ -1,4 +1,4 @@
-package yand.downloader.impl;
+package yand.downloader.downloaders;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.junit.After;

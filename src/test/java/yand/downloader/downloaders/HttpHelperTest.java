@@ -1,6 +1,7 @@
-package yand.downloader.impl;
+package yand.downloader.downloaders;
 
 import org.junit.Test;
+import yand.downloader.util.HttpHelper;
 
 import java.nio.ByteBuffer;
 

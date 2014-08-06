@@ -1,4 +1,4 @@
-package yand.downloader.impl;
+package yand.downloader.downloaders;
 
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;

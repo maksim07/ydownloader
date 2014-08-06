@@ -1,10 +1,8 @@
 package yand.downloader;
 
-import yand.downloader.impl.DownloadManagerTest;
+import yand.downloader.downloaders.DownloadManagerTest;
 
 import java.io.IOException;
-
-import static org.junit.Assert.*;
 
 public class DownloadManagersTest extends DownloadManagerTest {
 

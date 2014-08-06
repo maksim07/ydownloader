@@ -1,7 +1,7 @@
 package yand.downloader;
 
-import yand.downloader.impl.CompositeDownloadManager;
-import yand.downloader.impl.HttpDownloadManager;
+import yand.downloader.downloaders.CompositeDownloadManager;
+import yand.downloader.downloaders.HttpDownloadManager;
 
 import java.io.IOException;
 import java.util.HashMap;
