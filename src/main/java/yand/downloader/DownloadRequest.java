@@ -22,6 +22,7 @@ public final class DownloadRequest implements Serializable {
     public DownloadRequest(URL resource) {
         this.resources = new URL[]{resource};
     }
+
     public URL[] getResources() {
         return resources;
     }
