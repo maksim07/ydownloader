@@ -98,7 +98,6 @@ public class HttpDownloadController implements DownloadController, Closeable {
 
                 tasks.add(task);
 
-                System.out.println("Controller is registered for " + url);
                 this.status = DownloadingStatus.RUNNING;
             }
         } catch (Exception e) {

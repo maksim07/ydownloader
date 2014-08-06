@@ -80,7 +80,6 @@ class HttpDownloadTask implements Closeable {
         this.key = key;
 
         this.file = File.createTempFile("yd_", ".data");
-        System.out.println("File created " + file.getAbsolutePath());
         RandomAccessFile rfile = new RandomAccessFile(this.file, "rw");
         this.fchannel = rfile.getChannel();
     }
@@ -88,7 +87,6 @@ class HttpDownloadTask implements Closeable {
     @Override
     public void close() throws IOException {
 
-        System.out.println("Closing");
         key.cancel();
 
         IOException first = null;

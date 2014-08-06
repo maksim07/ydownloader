@@ -54,7 +54,6 @@ public class HttpDownloadManager implements DownloadManager {
 
         DownloadController controller = manager.download(new DownloadRequest(urls));
         DownloadResponse response = controller.get();
-        System.out.println("Response " + response);
         manager.stop();
     }
 
